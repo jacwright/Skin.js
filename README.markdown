@@ -1,4 +1,4 @@
-Skin.js is a Javascript template library to go with Backbone.js. It follows the {{ mustache }} (http://mustache.github.com/) syntax.
+Skin.js is a Javascript template library to go with Backbone.js. It follows the [{{ mustache }}](http://mustache.github.com/) syntax.
 
 
 Additional features beyond the Mustache Javascript lib:
@@ -31,21 +31,21 @@ Roadmap
 
 Examples:
 
-<script id="personTemplate" type="text/html">
-	<div class="person{{active ? ' active: ''}}">{{firstName}} {{lastName}} <a href="http://twitter.com/{{ twitter }}">@{{twitter}}</a></div>
-</script>
-
-<script type="text/javascript">
-$(function() {
-	var jac = new Backbone.Model({ firstName: 'Jacob', lastName: 'Wright', twitter: 'jac_', active: false });
-	$('#personTemplate').skin(jac).appendTo('body');
-});
-</script>
+    <script id="personTemplate" type="text/html">
+        <div class="person{{active ? ' active: ''}}">{{firstName}} {{lastName}} <a href="http://twitter.com/{{ twitter }}">@{{twitter}}</a></div>
+    </script>
+    
+    <script type="text/javascript">
+    $(function() {
+        var jac = new Backbone.Model({ firstName: 'Jacob', lastName: 'Wright', twitter: 'jac_', active: false });
+        $('#personTemplate').skin(jac).appendTo('body');
+    });
+    </script>
 
 Will add to the body:
 
-<div class="person">Jacob Wright <a href="http://twitter.com/jac_">@jac_</a></div>
+    <div class="person">Jacob Wright <a href="http://twitter.com/jac_">@jac_</a></div>
 
 And the goal is to make it so when jac.set({ active: true }); then the element in the body will automatically change to:
 
-<div class="person active">Jacob Wright <a href="http://twitter.com/jac_">@jac_</a></div>
+    <div class="person active">Jacob Wright <a href="http://twitter.com/jac_">@jac_</a></div>
