@@ -22,7 +22,7 @@ function Skin(html) {
 		escapeSingleExp = /'/g,
 		templateLineExp = /(^|\n)\s*(\{\{.*}\})\s*(\n|$)/g,
 		trimLines = /\n\s+|\s+\n/g,
-		propertyExp = /(^|\s)([a-zA-Z$_][-\w]+)/g,
+		propertyExp = /(^|\s)([a-zA-Z$][-\w]+)/g,
 		backbonePropExp = /\$data\.(\w+)(?!\s*\()/g,
 		backboneReplace = "_.get($data,'$1')";
 	
