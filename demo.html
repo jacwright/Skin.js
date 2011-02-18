@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Skin Demo</title>
+		<script src="test/jquery-1.4.4.min.js" type="text/javascript"></script>
+		<script src="test/underscore-min.js" type="text/javascript"></script>
+		<script src="test/backbone-min.js" type="text/javascript"></script>
+		<script src="src/skin.js" type="text/javascript"></script>
+		
+		<script id="user" type="text/html">
+            <li>
+                <p>Howdy I&apos;m <a href="http://twitter.com/{{ twitter }}">@{{ twitter }}</a></p>
+                <p>I work for {{ employer }} as a {{ jobTitle }}.</p>
+            </li>
+        </script>
+		
+		<script id="test" type="text/html">
+			<li data-view="UserView">
+				<p>{{firstName}} {{lastName}} <a href="http://twitter.com/{{ twitter }}">@{{ twitter }}</a></p>
+				<p><strong>{{ employer }}</strong>: {{ jobTitle }}.</p>
+				<div class="projects">
+					<h3>Projects</h3>
+					<div>
+						{{#projects}}
+						<p data-view="ProjectView">
+							<strong>{{ name }}</strong>
+							<label>Url:</label> {{^href}}<em>Unknown</em>{{/href}}{{#href}}<a href="{{ href }}">{{ href }}</a>{{/href}}
+						</p>
+						{{/projects}}
+						{{^projects}}
+						<em>There are no projects for {{ firstName }}</em>
+						{{/projects}}
+					</div>
+				</div>
+			</li>
+		</script>
+		
+		<script type="text/javascript">
+			
+			// when the dom's ready
+			$(document).ready(function () {
+				
+				window.user = new Backbone.Model({
+					firstName: 'Jacob',
+					lastName: 'Wright',
+					twitter: 'jac_',
+					employer: "Jive Software",
+					jobTitle: "UI Engineer"
+				});
+				
+				user.projects = new Backbone.Collection();
+				
+				user.projects.add({
+					name: 'Skin',
+					href: 'http://github.com/jacwright/skin'
+				});
+				
+				$('#user_list').append($('#test').skin(user));
+				
+				// add a simple click handler for the "add user" button.
+				$('#add_user').click(function () {
+					var user_data, user;
+					
+					// build a simple user object, in a real app this would probably come from a server
+					// somewhere. Otherwise hardcoding here is just silly.
+					user_data = new Backbone.Model({
+						name: "Jacob Wright",
+						twitter: "jac_",
+						employer: "Jive Software",
+						jobTitle: "UI Engineer"
+					});
+
+					// Here's all the magic.
+					user = $('#user').skin(user_data, true);console.log(user);
+					
+					// append it to the list, tada! Now go do something more useful with this.
+					$('#user_list').append(user);
+				});
+				
+				var compiled = function($data) {
+					var out = '';
+					out += '<li data-view="UserView">';
+					out += '<p>';
+					out += _.get($data, 'firstName');
+					out += ' ';
+					out += _.get($data, 'lastName');
+					out += '<a href="http://twitter.com/';
+					out += _.get($data, 'twitter');
+					out += '">@';
+					out += _.get($data, 'twitter');
+					out += '</a></p>\n<p><strong>';
+					out += _.get($data, 'employer');
+					out += '</strong>: ';
+					out += _.get($data, 'jobTitle');
+					out += '.</p>\n<div class="projects">\n<h3>Projects</h3>\n';
+					if (!_.isEmtpy(_.get($data, 'projects'))) {
+						out += '<div>';
+						out += _.map(_.get($data, 'projects'), function($data) {
+							out += '<p data-view="ProjectView">\n<strong>';
+							out += _.get($data, 'name');
+							out += '</strong>\n<label>Url:</label> ';
+							if (!_.get($data, 'url')) {
+								out += '<em>Unknown</em>\n';
+							}
+							if (_.get($data, 'url')) {
+								out += '<a href="';
+								out += _.get($data, 'url');
+								out += '">';
+								out += _.get($data, 'url');
+								out += '</a>\n';
+							}
+							out += '</p>';
+						});
+						out += '</div>\n';
+					}
+					
+					if (_.isEmtpy(_.get($data, 'projects'))) {
+						out += '<div>\n<em>There are currently no projects for ';
+						out += _.get($data, 'firstName');
+						out += '</em>\n</div>\n';
+					}
+					out += '</div>\n</li>';
+					
+					// set up binding
+					var elem = $(out);
+					
+					$data.bind('change:firstName', function() {
+						var out = _.get($data, 'firstName');
+						out += ' ';
+						out += _.get($data, 'lastName');
+						out += '<a href="http://twitter.com/';
+						out += _.get($data, 'twitter');
+						out += '">@';
+						out += _.get($data, 'twitter');
+						out += '</a>';
+						elem.find('p:eq(0)').html();
+					});
+				};
+				
+				
+				
+			});
+			
+		</script>
+		
+		<style>
+			body {
+				font-family: Helvetica;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Skin Demo</h1>
+		<h3>User List</h3>
+		<button id="add_user">Add User</button>
+		<ul id="user_list"></ul>
+	</body>
+</html>
