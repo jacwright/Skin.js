@@ -102,7 +102,7 @@ function Skin(html) {
 			});
 		},
 		isNonFalse: function(value) {
-			if (_.isArray(value) || value instanceof Backbone.Collection) return value.length > 0;
+			if (_.isArray(value) || (typeof Backbone != 'undefined' && value instanceof Backbone.Collection)) return value.length > 0;
 			return !!value;
 		},
 		escapeRegex: function (value) {
@@ -112,10 +112,10 @@ function Skin(html) {
 			return value && typeof value == "object" && !_.isArray(value);
 		},
 		isModel: function(value) {
-			return value instanceof Backbone.Model;
+			return typeof Backbone != 'undefined' && value instanceof Backbone.Model;
 		},
 		isCollection: function(value) {
-			return value instanceof Backbone.Collection;
+			return typeof Backbone != 'undefined' && value instanceof Backbone.Collection;
 		},
 		get: function(obj, prop) {
 			var value = prop in obj ? obj[prop] : (_.isModel(obj) ? obj.get(prop) : undefined);
