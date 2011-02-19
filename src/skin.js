@@ -24,9 +24,12 @@ function Skin(html) {
 		trimLines = /\n\s+|\s+\n/g,
 		propertyExp = /(^|\s)([a-zA-Z$][-\w]+)/g,
 		backbonePropExp = /\$data\.(\w+)(?!\s*\()/g,
-		backboneReplace = "_.get($data,'$1')";
-	
-	
+		backboneReplace = "_.get($data,'$1')",
+		tagStartExp = /<([-\w]+)[^>]+>/g,
+		expressionExp = /\{\{([^#/^!>=][^}]*)\}\}/g,
+		attrOrContExp = /([-\w]+)="(([^"{]*\{\{[^#/^!>=][^}]*\}\}[^"{]*)+)"|>(([^<{]*\{\{[^#/^!>=][^}]*\}\}[^<{]*)+)</g,
+		propExp = /(^|\s)([a-zA-Z$][-\w]+)(\()?/g,
+		commentsExp = /<!--.*?-->/g;
 	
 	Skin.prototype = {
 		constructor: Skin,
@@ -45,6 +48,7 @@ function Skin(html) {
 			
 			try {
 				this.apply = makeTemplate(html);
+				this.create = createTemplate(html, this);
 			} catch(e) {
 				throw 'Error creating template "' + e + '" for template:\n' + html;
 			}
@@ -59,7 +63,7 @@ function Skin(html) {
 		 */
 		apply: function(data) {
 			// replaced by compiled function
-			return '';
+			return this.html;
 		},
 		
 		/**
@@ -69,12 +73,10 @@ function Skin(html) {
 		 * @return {jQuery} A jQuery list of one or more elements
 		 */
 		create: function(data) {
-			var html = this.apply(data);
-			return $(html);
+			// replaced by compiled function
+			return $(this.apply(data));
 		}
 	};
-	
-	
 	
 	
 	$.fn.skin = function(data, textOnly) {
@@ -82,6 +84,26 @@ function Skin(html) {
 		if (!skin) this.data('skin', skin = new Skin((this.html() || '').replace(/^[\s\n]+|[\s\n]+$/g, '')));
 		return textOnly ? skin.apply(data) : skin.create(data);
 	};
+	
+	$.fn.nerve = function(data) {
+		var skin = this.data('skin');
+		if (!skin) this.data('skin', skin = new Skin((this.html() || '').replace(/^[\s\n]+|[\s\n]+$/g, '')));
+		return skin.createBound(data);
+	};
+	
+	// prevent memory leaks
+//	var __cleanData = $.cleanData;
+//	$.cleanData = function(elems) {
+//		$(elems).each(function() {
+//			var listeners = $(this).data('skinListeners');
+//			if (listeners) {
+//				_.each(listeners, function(listener) {
+//					listener.model.unbind(listener.event, listener.method);
+//				});
+//			}
+//		});
+//		__cleanData(elems);
+//	};
 	
 	var __map = _.map;
 	_.mixin({
@@ -121,12 +143,21 @@ function Skin(html) {
 			var value = prop in obj ? obj[prop] : (_.isModel(obj) ? obj.get(prop) : undefined);
 			return (typeof value == 'function' ? value.call(obj) : value);
 		},
-		set: function(obj, prop, value) {
-			return _.isModel(obj) && !(prop in obj) ? obj.set(prop, value) : obj[prop] = value;
+		set: function(obj, prop, value, options) {
+			if (_.isModel(obj) && !(prop in obj)) {
+				if (_.isObject(prop)) obj.set(prop, value);
+				else {
+					var changes = {};
+					changes[prop] = value;
+					obj.set(changes, options);
+				}
+			} else {
+				obj[prop] = value;
+			}
 		}
 	});
-
-
+	
+	
 	/**
 	 * Create a function to generate the output for a template. This compiles the logic into code for speed rather than
 	 * parsing the template code every time the template is used. This increases speed but prevent us supporting lambdas
@@ -143,6 +174,7 @@ function Skin(html) {
 			html = html.replace(trimLines, '\n').replace(fixCarriageExp, '\n').replace(templateLineExp, '$1$2');
 		}
 		
+		// store state in an object so it can be changed by other functions
 		var state = { index: 0, html: html }, codeStart, codeEnd, code;
 		
 		// simplify by putting everything into a mapped array
@@ -150,7 +182,7 @@ function Skin(html) {
 		tmpl += 'if (!_.isArray($data) && !_.isCollection($data)) $data = [$data];\n';
 		tmpl += 'return _.map($data, function($data) {\n';
 		
-		// everythign will be appended to the "out" string
+		// everything will be appended to the "out" string
 		tmpl += "var out = '';\n";
 		
 		// loop from code piece to code piece adding the HTML between
@@ -265,6 +297,131 @@ function Skin(html) {
 			default:
 				return "out += _.escape(" + code.replace(propertyExp, '$1$data.$2').replace(backbonePropExp, backboneReplace) + ") || '';\n";
 		}
+	}
+	
+	
+		
+	
+	/**
+	 * Create a template function which will generate HTML elements with parts bound to Backbone models.
+	 * @param html
+	 */
+	function createTemplate(html, self) {
+		html = html.replace(commentsExp, '').replace(trimLines, '\n').replace(fixCarriageExp, '\n').replace(templateLineExp, '$1$2');
+		
+		// we cannot currently support conditionals, lists, or 
+		if (html.indexOf('{{') == -1
+				|| html.indexOf('{{#') != -1
+				|| html.indexOf('{{^') != -1
+				) return self.create;
+		
+		
+		// start the template function by creating the nodes
+		var tmpl = 'if (!_.isArray($data) && !_.isCollection($data)) $data = [$data];\n';
+		tmpl += 'var apply = this.apply, templates = this.templates;\n';
+		tmpl += "var all = _.map($data, function($data) {\n";
+		tmpl += "var nodes = $(apply($data));\n";
+		tmpl += "if (!_.isModel($data)) return nodes;\n";
+		
+		// contextualize the methods to "this" instance
+		tmpl += 'var listener, listeners;\n';
+		
+		
+		
+		var sections = "", section, count = 0, i, index, finalIndex, code, obj, prop;
+		
+		// put every element into a list (nodes == elements, no text nodes)
+		var nodes = $(html);
+		nodes = nodes.add(nodes.find('*')); // all nodes including top-level
+		
+		// list out the index in the string of the beginning of each node
+		var nodeIndexes = [];
+		while (match = tagStartExp.exec(html)) {
+			var tag = match[0];
+			var node = nodes.eq(nodeIndexes.length);
+			var start = tagStartExp.lastIndex - tag.length;
+			var end = start + tag.length + node.html();
+			nodeIndexes.push({ start: start, end: end }); // the start of the tag
+		}
+
+		// find all the attributes and content {} and set up the bindings
+		var templates = self.templates = {}, match;
+			
+		// find all attributes that have binding expressions
+		while ( (match = attrOrContExp.exec(html)) ) {
+			var name = match[1];
+			var value = match[2];
+			var content = match[4] || value;
+			
+			// index of the match
+			index = attrOrContExp.lastIndex;
+			
+			// index of the element this match is associated with
+			finalIndex = findIndex(index - content.length, nodeIndexes);
+			
+			// number of setters we have so far (e.g. setter1(), setter2(), setter3(), etc.)
+			count++;
+			
+			// start setter
+			tmpl += 'listener = (function() {\n';
+			if (finalIndex == 0) {
+				tmpl += 'var element = nodes;\n';
+			} else {
+				tmpl += 'var element = nodes.find("*:eq(' + (finalIndex - 1) + ')");\n';
+			}
+			
+			// create a different setter depending on if an attribute match or content match
+			if (name) { // attribute
+				// create the subtemplate and store it on the "self" methods object
+				templates['subtemplate' + count] = makeTemplate(value);
+				tmpl += 'element.attr("' + name + '", templates.subtemplate' + count + '($data));\n';
+			} else { // content
+				// create the subtemplate and store it on the "self" methods object
+				templates['subtemplate' + count] = makeTemplate(nodes.eq(finalIndex).html());
+				tmpl += 'element.html(templates.subtemplate' + count + '($data));\n';
+			}
+			
+			tmpl += '});\n';
+//			tmpl += 'listeners = element' + count + '.data("skinListeners") || element' + count + '.data("skinListeners", listeners = []);\n';
+			
+			// find each {{expression}}
+			while ( (match = expressionExp.exec(content)) ) {
+				code = match[1];
+				// find each property in the {{expression}} (e.g. {{firstName + lastName}} would be firstName and lastName) 
+				while ( (match = propExp.exec(code)) ) {
+					if (match[3]) continue; // matched a function, don't bind
+					prop = match[2];
+					tmpl += '$data.bind("change:' + prop + '", listener);\n';
+//					tmpl += 'listeners.push({ model: $data, event: "change:' + prop + '", listener: listener });\n';
+				}
+			}
+		}
+		
+		
+		tmpl += 'return nodes;\n';
+		tmpl += '});\n';
+		tmpl += 'var items = $();\n';
+		tmpl += '_.each(all, function(nodes) {\n';
+		tmpl += 'items = items.add(nodes);\n';
+		tmpl += '});\n';
+		tmpl += 'return items;\n';
+		
+		return new Function('$data', tmpl);
+	}
+	
+	function findIndex(index, nodeIndexes) {
+		var before;
+		for (var i = 0; i < nodeIndexes.length; i++) {
+			if (index < nodeIndexes[i].start) {
+				before = i;
+				break;
+			}
+		}
+		if (before == null) before = nodeIndexes.length - 1;
+		for (i = before; i >= 0; i--) {
+			if (index > nodeIndexes[i].end) return i;
+		}
+		return 0;
 	}
 	
 }).call(this, jQuery);

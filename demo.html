@@ -8,30 +8,9 @@
 		<script src="src/skin.js" type="text/javascript"></script>
 		
 		<script id="user" type="text/html">
-            <li>
-                <p>Howdy I&apos;m <a href="http://twitter.com/{{ twitter }}">@{{ twitter }}</a></p>
-                <p>I work for {{ employer }} as a {{ jobTitle }}.</p>
-            </li>
-        </script>
-		
-		<script id="test" type="text/html">
-			<li data-view="UserView">
-				<p>{{firstName}} {{lastName}} <a href="http://twitter.com/{{ twitter }}">@{{ twitter }}</a></p>
+			<li data-view="UserView" class="{{active ? '' : 'inactive'}}">
+				<p>{{firstName}} <strong>{{lastName}}</strong> <a href="http://twitter.com/{{ twitter }}">@{{ twitter }}</a></p>
 				<p><strong>{{ employer }}</strong>: {{ jobTitle }}.</p>
-				<div class="projects">
-					<h3>Projects</h3>
-					<div>
-						{{#projects}}
-						<p data-view="ProjectView">
-							<strong>{{ name }}</strong>
-							<label>Url:</label> {{^href}}<em>Unknown</em>{{/href}}{{#href}}<a href="{{ href }}">{{ href }}</a>{{/href}}
-						</p>
-						{{/projects}}
-						{{^projects}}
-						<em>There are no projects for {{ firstName }}</em>
-						{{/projects}}
-					</div>
-				</div>
 			</li>
 		</script>
 		
@@ -40,51 +19,50 @@
 			// when the dom's ready
 			$(document).ready(function () {
 				
-				window.user = new Backbone.Model({
+				var user = new Backbone.Model({
 					firstName: 'Jacob',
 					lastName: 'Wright',
 					twitter: 'jac_',
 					employer: "Jive Software",
-					jobTitle: "UI Engineer"
+					jobTitle: "UI Engineer",
+					active: true
 				});
 				
-				user.projects = new Backbone.Collection();
+				$('#user_list').append($('#user').skin(user));
 				
-				user.projects.add({
-					name: 'Skin',
-					href: 'http://github.com/jacwright/skin'
+				// update form elements
+				$(':text').each(function() {
+					var names = $(this).attr('name').split(',');
+					var value = _.map(names, function(name) {
+						return user.get(name)
+					}).join(' ');
+					$(this).val(value);
+				});
+				$(':text[name=name]').val(user.get('firstName') + ' ' + user.get('lastName'));
+				$(':checkbox').each(function() {
+					var name = $(this).attr('name');
+					$(this).attr('checked', user.get(name));
 				});
 				
-				$('#user_list').append($('#test').skin(user));
-				$('#name').val(user.get('firstName') + ' ' + user.get('lastName'));
-				
-				// add a simple click handler for the "add user" button.
-				$('#add_user').click(function () {
-					var user_data, user;
-					
-					// build a simple user object, in a real app this would probably come from a server
-					// somewhere. Otherwise hardcoding here is just silly.
-					user_data = new Backbone.Model({
-						name: "Jacob Wright",
-						twitter: "jac_",
-						employer: "Jive Software",
-						jobTitle: "UI Engineer"
-					});
-
-					// Here's all the magic.
-					user = $('#user').skin(user_data, true);console.log(user);
-					
-					// append it to the list, tada! Now go do something more useful with this.
-					$('#user_list').append(user);
+				// keep object updated
+				$(':text[name=name]').bind('keydown keyup', function() {
+					var value = $(this).val().split(/\s+/);
+					user.set({ lastName: value.pop() || '', firstName: value.join(' ') });
 				});
 				
+				// keep object updated
+				$(':text:not([name=name])').bind('keydown keyup', function() {
+					var changes = {};
+					changes[$(this).attr('name')] = $(this).val();
+					user.set(changes);
+				});
 				
-				$('#name').bind('keydown keyup', function() {
-					var name = $(this).val().split(/\s+/);
-					user.set({
-						firstName: name.shift() || '',
-						lastName: name.shift() || ''
-					});
+				$(':checkbox').bind('change', function() {
+					var name = $(this).attr('name');
+					var value = $(this).attr('checked');
+					var changes = {};
+					changes[name] = value;
+					user.set(changes);
 				});
 			});
 			
@@ -94,13 +72,28 @@
 			body {
 				font-family: Helvetica;
 			}
+			.inactive {
+				opacity: .5;
+			}
 		</style>
 	</head>
 	<body>
 		<h1>Skin Demo</h1>
-		<h3>User List</h3>
-		<button id="add_user">Add User</button>
-		<label>User Name <input id="name" name="username" type="text"></label>
+		<div>
+			<label>Name: <input name="name" type="text"></label>
+		</div>
+		<div>
+			<label>Twitter: <input name="twitter" type="text"></label>
+		</div>
+		<div>
+			<label>Employer: <input name="employer" type="text"></label>
+		</div>
+		<div>
+			<label>Job Title: <input name="jobTitle" type="text"></label>
+		</div>
+		<div>
+			<label>Active: <input name="active" type="checkbox"></label>
+		</div>
 		<ul id="user_list"></ul>
 	</body>
 </html>
